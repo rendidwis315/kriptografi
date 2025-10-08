@@ -43,7 +43,7 @@
                     <div class="border-t"></div>
                     <a href="{{ route('vigenere.encrypt') }}" class="block px-6 py-3 hover:bg-gray-100 transition">🔑 Vigenère</a>
                     <div class="border-t"></div>
-                    <a href="#" class="block px-6 py-3 hover:bg-gray-100 transition">🔐 AES</a>
+                    <a href="{{ route('aes.encrypt') }}" class="block px-6 py-3 hover:bg-gray-100 transition">🔐 AES</a>
                     <div class="border-t"></div>
                     <a href="#" class="block px-6 py-3 hover:bg-gray-100 font-semibold text-blue-700 transition">✨
                         Semua (3 Layer)</a>
@@ -68,7 +68,7 @@
                     <div class="border-t"></div>
                     <a href="#" class="block px-6 py-3 hover:bg-gray-100 transition">🔑 Vigenère</a>
                     <div class="border-t"></div>
-                    <a href="#" class="block px-6 py-3 hover:bg-gray-100 transition">🔐 AES</a>
+                    <a href="{{ route('aes.decrypt') }}" class="block px-6 py-3 hover:bg-gray-100 transition">🔐 AES</a>
                     <div class="border-t"></div>
                     <a href="#" class="block px-6 py-3 hover:bg-gray-100 font-semibold text-blue-700 transition">✨
                         Semua (3 Layer)</a>
