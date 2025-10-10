@@ -43,4 +43,48 @@ class CipherController extends Controller
 
         return $ciphertext;
     }
+    
+ // 🔹 Halaman Dekripsi (GET)
+    public function vigenereDecrypt()
+    {
+        return view('vigenere.decrypt');
+    }
+
+    // 🔹 Proses Dekripsi (POST)
+    public function vigenereDecryptProcess(Request $request)
+    {
+        $ciphertext = strtoupper($request->input('ciphertext'));
+        $key = strtoupper($request->input('key'));
+
+        if (empty($ciphertext) || empty($key)) {
+            return redirect()->route('vigenere.decrypt')
+                ->with('error', 'Ciphertext dan key harus diisi.');
+        }
+
+        $plaintext = $this->decryptVigenere($ciphertext, $key);
+
+        return redirect()->route('vigenere.decrypt')->with('plaintext', $plaintext);
+    }
+
+    private function decryptVigenere($text, $key)
+    {
+        $plaintext = '';
+        $keyLength = strlen($key);
+        $keyIndex = 0;
+
+        for ($i = 0; $i < strlen($text); $i++) {
+            $char = $text[$i];
+
+            if (ctype_alpha($char)) {
+                $shift = ord($key[$keyIndex % $keyLength]) - 65;
+                $decrypted = ((ord($char) - 65 - $shift + 26) % 26) + 65;
+                $plaintext .= chr($decrypted);
+                $keyIndex++;
+            } else {
+                $plaintext .= $char;
+            }
+        }
+
+        return $plaintext;
+    }
 }

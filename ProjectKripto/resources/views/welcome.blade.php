@@ -39,7 +39,7 @@
                     x-transition:leave-end="opacity-0 transform -translate-y-2"
                     class="absolute mt-3 w-full bg-white text-gray-800 rounded-xl shadow-xl overflow-hidden z-50 min-w-[300px]">
 
-                    <a href="#" class="block px-6 py-3 hover:bg-gray-100 transition">🔄 Atbash</a>
+                    <a href="{{ route('atbash.encrypt')}}" class="block px-6 py-3 hover:bg-gray-100 transition">🔄 Atbash</a>
                     <div class="border-t"></div>
                     <a href="{{ route('vigenere.encrypt') }}" class="block px-6 py-3 hover:bg-gray-100 transition">🔑 Vigenère</a>
                     <div class="border-t"></div>
@@ -64,9 +64,9 @@
                     x-transition:leave-end="opacity-0 transform -translate-y-2"
                     class="absolute mt-3 w-full bg-white text-gray-800 rounded-xl shadow-xl overflow-hidden z-50 min-w-[300px]">
 
-                    <a href="#" class="block px-6 py-3 hover:bg-gray-100 transition">🔄 Atbash</a>
+                    <a href="{{ route('atbash.decrypt')}}" class="block px-6 py-3 hover:bg-gray-100 transition">🔄 Atbash</a>
                     <div class="border-t"></div>
-                    <a href="#" class="block px-6 py-3 hover:bg-gray-100 transition">🔑 Vigenère</a>
+                    <a href="{{route('vigenere.decrypt')}}" class="block px-6 py-3 hover:bg-gray-100 transition">🔑 Vigenère</a>
                     <div class="border-t"></div>
                     <a href="{{ route('aes.decrypt') }}" class="block px-6 py-3 hover:bg-gray-100 transition">🔐 AES</a>
                     <div class="border-t"></div>
