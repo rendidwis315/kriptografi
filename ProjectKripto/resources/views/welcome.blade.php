@@ -45,7 +45,7 @@
                     <div class="border-t"></div>
                     <a href="{{ route('aes.encrypt') }}" class="block px-6 py-3 hover:bg-gray-100 transition">🔐 AES</a>
                     <div class="border-t"></div>
-                    <a href="#" class="block px-6 py-3 hover:bg-gray-100 font-semibold text-blue-700 transition">✨
+                    <a href="{{ route('triple.encrypt') }}" class="block px-6 py-3 hover:bg-gray-100 font-semibold text-blue-700 transition">✨
                         Semua (3 Layer)</a>
                 </div>
             </div>
@@ -70,7 +70,7 @@
                     <div class="border-t"></div>
                     <a href="{{ route('aes.decrypt') }}" class="block px-6 py-3 hover:bg-gray-100 transition">🔐 AES</a>
                     <div class="border-t"></div>
-                    <a href="#" class="block px-6 py-3 hover:bg-gray-100 font-semibold text-blue-700 transition">✨
+                    <a href="{{ route('triple.decrypt')}}" class="block px-6 py-3 hover:bg-gray-100 font-semibold text-blue-700 transition">✨
                         Semua (3 Layer)</a>
                 </div>
             </div>

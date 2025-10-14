@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CipherController;
 use App\Http\Controllers\AesController;
 use App\Http\Controllers\AtbashController;
+use App\Http\Controllers\TripleCipherController;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -42,3 +44,10 @@ Route::post('/enkripsi/atbash', [AtbashController::class, 'atbashProcess'])->nam
 // Dekripsi Atbash
 Route::get('/dekripsi/atbash', [AtbashController::class, 'atbashDecrypt'])->name('atbash.decrypt');
 Route::post('/dekripsi/atbash', [AtbashController::class, 'atbashProcess'])->name('atbash.decrypt.process');
+
+// Triple Cipher (Atbash -> Vigenere -> AES)
+Route::get('/triple/encrypt', [TripleCipherController::class, 'encryptForm'])->name('triple.encrypt');
+Route::post('/triple/encrypt', [TripleCipherController::class, 'encryptProcess'])->name('triple.encrypt.process');
+
+Route::get('/triple/decrypt', [TripleCipherController::class, 'decryptForm'])->name('triple.decrypt');
+Route::post('/triple/decrypt', [TripleCipherController::class, 'decryptProcess'])->name('triple.decrypt.process');
