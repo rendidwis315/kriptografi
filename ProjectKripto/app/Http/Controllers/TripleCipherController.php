@@ -6,23 +6,18 @@ use Illuminate\Http\Request;
 
 class TripleCipherController extends Controller
 {
-    // AES mode (AES-128-CBC) — AES key harus 16 karakter
     private $aesMethod = "AES-128-CBC";
 
     /* -------------------------
-       Views: tampilkan form
+       Tampilan Halaman
        ------------------------- */
     public function encryptForm()
     {
-        // buat view 'triple.encrypt' yang berisi form dengan field:
-        // plaintext, vigenere_key, aes_key
         return view('triple.encrypt');
     }
 
     public function decryptForm()
     {
-        // buat view 'triple.decrypt' yang berisi form dengan field:
-        // ciphertext, vigenere_key, aes_key
         return view('triple.decrypt');
     }
 
@@ -32,27 +27,37 @@ class TripleCipherController extends Controller
     public function encryptProcess(Request $request)
     {
         $plaintext = $request->input('plaintext', '');
-        $vigenereKey = $request->input('vigenere_key', '');
-        $aesKey = $request->input('aes_key', '');
+        $mainKey = $request->input('key', '');
 
-        // Validasi sederhana
-        if (empty($plaintext)) {
-            return redirect()->route('triple.encrypt')->with('error', 'Plaintext harus diisi.');
-        }
-        if (empty($vigenereKey) || !ctype_alpha($vigenereKey)) {
-            return redirect()->route('triple.encrypt')->with('error', 'Vigenere key harus diisi dan hanya huruf A-Z.');
-        }
-        if (strlen($aesKey) !== 16) {
-            return redirect()->route('triple.encrypt')->with('error', 'AES key harus 16 karakter untuk AES-128.');
+        if (empty($plaintext) || empty($mainKey)) {
+            return redirect()->route('triple.encrypt')->with('error', 'Plaintext dan kunci harus diisi.');
         }
 
-        // 1) ATBASH (treatment: uppercase untuk huruf)
-        $step1 = $this->atbashEncrypt(strtoupper($plaintext));
+        // -------------------
+        // Derivasi key
+        // -------------------
+        // Vigenère key hanya huruf besar, spasi dihapus
+        $vigenereKey = strtoupper(preg_replace('/[^A-Za-z]/', '', $mainKey));
+        if ($vigenereKey === '') {
+            return redirect()->route('triple.encrypt')->with('error', 'Kunci harus mengandung huruf untuk Vigenère.');
+        }
 
-        // 2) VIGENERE (menghasilkan huruf uppercase)
-        $step2 = $this->vigenereEncrypt(strtoupper($step1), strtoupper($vigenereKey));
+        // AES key: gunakan apa adanya (huruf, angka, simbol, spasi)
+        $aesKey = $this->generateAESKey($mainKey);
 
-        // 3) AES (plaintext => AES binary encrypted => base64)
+        // -------------------
+        // 1) ATBASH (huruf besar, hasil mengikuti kapitalisasi plaintext)
+        // -------------------
+        $step1 = $this->atbashWithCase($plaintext);
+
+        // -------------------
+        // 2) VIGENÈRE (plaintext huruf besar untuk proses, hasil mengikuti kapitalisasi step1)
+        // -------------------
+        $step2 = $this->vigenereWithCase($step1, $vigenereKey);
+
+        // -------------------
+        // 3) AES (tidak menormalisasi kapital, key sesuai aesKey)
+        // -------------------
         $ciphertext = $this->encryptAES($step2, $aesKey);
 
         return redirect()->route('triple.encrypt')->with('ciphertext', $ciphertext);
@@ -64,109 +69,58 @@ class TripleCipherController extends Controller
     public function decryptProcess(Request $request)
     {
         $ciphertext = $request->input('ciphertext', '');
-        $vigenereKey = $request->input('vigenere_key', '');
-        $aesKey = $request->input('aes_key', '');
+        $mainKey = $request->input('key', '');
 
-        if (empty($ciphertext)) {
-            return redirect()->route('triple.decrypt')->with('error', 'Ciphertext harus diisi.');
-        }
-        if (empty($vigenereKey) || !ctype_alpha($vigenereKey)) {
-            return redirect()->route('triple.decrypt')->with('error', 'Vigenere key harus diisi dan hanya huruf A-Z.');
-        }
-        if (strlen($aesKey) !== 16) {
-            return redirect()->route('triple.decrypt')->with('error', 'AES key harus 16 karakter untuk AES-128.');
+        if (empty($ciphertext) || empty($mainKey)) {
+            return redirect()->route('triple.decrypt')->with('error', 'Ciphertext dan kunci harus diisi.');
         }
 
-        // 1) AES decrypt (mengembalikan teks uppercase yang berasal dari langkah Vigenere)
+        // Derivasi key
+        $vigenereKey = strtoupper(preg_replace('/[^A-Za-z]/', '', $mainKey));
+        if ($vigenereKey === '') {
+            return redirect()->route('triple.decrypt')->with('error', 'Kunci harus mengandung huruf untuk Vigenère.');
+        }
+        $aesKey = $this->generateAESKey($mainKey);
+
+        // -------------------
+        // 1) AES decrypt
+        // -------------------
         $afterAes = $this->decryptAES($ciphertext, $aesKey);
         if ($afterAes === false) {
-            return redirect()->route('triple.decrypt')->with('error', 'Gagal dekripsi AES — pastikan key dan ciphertext benar.');
+            return redirect()->route('triple.decrypt')->with('error', 'Gagal dekripsi AES — pastikan kunci dan ciphertext benar.');
         }
 
-        // 2) VIGENERE decrypt
-        $afterVigenere = $this->vigenereDecrypt(strtoupper($afterAes), strtoupper($vigenereKey));
+        // -------------------
+        // 2) VIGENÈRE decrypt (mengikuti kapitalisasi step)
+        // -------------------
+        $afterVigenere = $this->vigenereDecryptWithCase($afterAes, $vigenereKey);
 
-        // 3) ATBASH (symmetrical)
-        $plaintext = $this->atbashEncrypt($afterVigenere); // fungsi sama untuk dekripsi
+        // -------------------
+        // 3) ATBASH decrypt (simetris)
+        // -------------------
+        $plaintext = $this->atbashWithCase($afterVigenere);
 
         return redirect()->route('triple.decrypt')->with('plaintext', $plaintext);
     }
 
     /* -------------------------
-       Helper: ATBASH
+       Helper: AES Key Generator
        ------------------------- */
-    private function atbashEncrypt(string $text): string
+    private function generateAESKey(string $key): string
     {
-        $result = '';
-        $len = strlen($text);
-
-        for ($i = 0; $i < $len; $i++) {
-            $char = $text[$i];
-            if (ctype_alpha($char)) {
-                // hanya A-Z diharapkan (teks sudah di-UCASE sebelum masuk)
-                $cipherChar = chr( ord('Z') - (ord($char) - ord('A')) );
-                $result .= $cipherChar;
-            } else {
-                $result .= $char;
-            }
+        // jika panjang >=16 karakter, gunakan apa adanya
+        if (strlen($key) >= 16) {
+            return substr($key, 0, 16);
         }
-
-        return $result;
+        // jika kurang, bangkitkan dari hash
+        return substr(hash('sha256', $key), 0, 16);
     }
 
     /* -------------------------
-       Helper: VIGENERE (encrypt & decrypt)
-       ------------------------- */
-    private function vigenereEncrypt(string $text, string $key): string
-    {
-        $ciphertext = '';
-        $keyLength = strlen($key);
-        $keyIndex = 0;
-
-        for ($i = 0; $i < strlen($text); $i++) {
-            $char = $text[$i];
-            if (ctype_alpha($char)) {
-                $shift = ord($key[$keyIndex % $keyLength]) - 65; // A=0
-                $encrypted = ((ord($char) - 65 + $shift) % 26) + 65;
-                $ciphertext .= chr($encrypted);
-                $keyIndex++;
-            } else {
-                $ciphertext .= $char;
-            }
-        }
-
-        return $ciphertext;
-    }
-
-    private function vigenereDecrypt(string $text, string $key): string
-    {
-        $plaintext = '';
-        $keyLength = strlen($key);
-        $keyIndex = 0;
-
-        for ($i = 0; $i < strlen($text); $i++) {
-            $char = $text[$i];
-            if (ctype_alpha($char)) {
-                $shift = ord($key[$keyIndex % $keyLength]) - 65;
-                $decrypted = ((ord($char) - 65 - $shift + 26) % 26) + 65;
-                $plaintext .= chr($decrypted);
-                $keyIndex++;
-            } else {
-                $plaintext .= $char;
-            }
-        }
-
-        return $plaintext;
-    }
-
-    /* -------------------------
-       Helper: AES (encrypt & decrypt)
-       - encryptAES: menerima plain text (STRING), mengembalikan base64 string
-       - decryptAES: menerima base64 ciphertext, mengembalikan decrypted string atau false
+       Helper: AES
        ------------------------- */
     private function encryptAES(string $text, string $key): string
     {
-        // IV derivation from key (tetap seperti implementasimu)
         $iv = substr(hash('sha256', $key), 0, 16);
         $encrypted = openssl_encrypt($text, $this->aesMethod, $key, OPENSSL_RAW_DATA, $iv);
         return base64_encode($encrypted);
@@ -176,10 +130,73 @@ class TripleCipherController extends Controller
     {
         $iv = substr(hash('sha256', $key), 0, 16);
         $decoded = base64_decode($base64Cipher, true);
-        if ($decoded === false) {
-            return false;
-        }
+        if ($decoded === false) return false;
         $decrypted = openssl_decrypt($decoded, $this->aesMethod, $key, OPENSSL_RAW_DATA, $iv);
         return $decrypted === false ? false : $decrypted;
+    }
+
+    /* -------------------------
+       Helper: ATBASH (mengikuti kapitalisasi plaintext)
+       ------------------------- */
+    private function atbashWithCase(string $text): string
+    {
+        $result = '';
+        foreach (str_split($text) as $char) {
+            if (ctype_alpha($char)) {
+                $isUpper = ctype_upper($char);
+                $c = strtoupper($char);
+                $cipher = chr(ord('Z') - (ord($c) - ord('A')));
+                $result .= $isUpper ? $cipher : strtolower($cipher);
+            } else {
+                $result .= $char;
+            }
+        }
+        return $result;
+    }
+
+    /* -------------------------
+       Helper: VIGENÈRE dengan kapital mengikuti plaintext
+       ------------------------- */
+    private function vigenereWithCase(string $text, string $key): string
+    {
+        $ciphertext = '';
+        $filteredKey = strtoupper($key);
+        $keyLen = strlen($filteredKey);
+        $j = 0;
+
+        foreach (str_split($text) as $char) {
+            if (ctype_alpha($char)) {
+                $isUpper = ctype_upper($char);
+                $c = strtoupper($char);
+                $shift = ord($filteredKey[$j % $keyLen]) - 65;
+                $enc = ((ord($c) - 65 + $shift) % 26) + 65;
+                $ciphertext .= $isUpper ? chr($enc) : strtolower(chr($enc));
+                $j++;
+            } else {
+                $ciphertext .= $char;
+            }
+        }
+        return $ciphertext;
+    }
+
+    private function vigenereDecryptWithCase(string $text, string $key): string
+    {
+        $plaintext = '';
+        $filteredKey = strtoupper($key);
+        $keyLen = strlen($filteredKey);
+        $j = 0;
+
+        foreach (str_split($text) as $char) {
+            if (ctype_alpha($char)) {
+                $isUpper = ctype_upper($char);
+                $c = strtoupper($char);
+                $dec = ((ord($c) - 65 - (ord($filteredKey[$j % $keyLen]) - 65) + 26) % 26) + 65;
+                $plaintext .= $isUpper ? chr($dec) : strtolower(chr($dec));
+                $j++;
+            } else {
+                $plaintext .= $char;
+            }
+        }
+        return $plaintext;
     }
 }

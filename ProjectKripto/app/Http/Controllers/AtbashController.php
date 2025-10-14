@@ -6,22 +6,21 @@ use Illuminate\Http\Request;
 
 class AtbashController extends Controller
 {
-    // Menampilkan halaman form enkripsi Atbash
+    // Halaman enkripsi
     public function atbashEncrypt()
     {
         return view('atbash.encrypt');
     }
 
-    // Memproses input plaintext dan menghasilkan ciphertext
+    // Proses enkripsi & dekripsi
     public function atbashProcess(Request $request)
     {
-        // Cek apakah input berasal dari form enkripsi atau dekripsi
         if ($request->has('plaintext')) {
-            $input = strtoupper($request->input('plaintext'));
+            $input = $request->input('plaintext', '');
             $result = $this->encryptAtbash($input);
             return redirect()->route('atbash.encrypt')->with('ciphertext', $result);
         } elseif ($request->has('ciphertext')) {
-            $input = strtoupper($request->input('ciphertext'));
+            $input = $request->input('ciphertext', '');
             $result = $this->encryptAtbash($input); // fungsi sama untuk dekripsi
             return redirect()->route('atbash.decrypt')->with('plaintext', $result);
         }
@@ -29,13 +28,13 @@ class AtbashController extends Controller
         return back()->with('error', 'Input tidak valid.');
     }
 
-    // Menampilkan halaman form dekripsi Atbash
+    // Halaman dekripsi
     public function atbashDecrypt()
     {
         return view('atbash.decrypt');
     }
 
-    // Fungsi utama untuk enkripsi dan dekripsi (karena Atbash simetris)
+    // Fungsi utama (Atbash bersifat simetris)
     private function encryptAtbash($text)
     {
         $result = '';
@@ -43,11 +42,16 @@ class AtbashController extends Controller
         for ($i = 0; $i < strlen($text); $i++) {
             $char = $text[$i];
 
-            if (ctype_alpha($char)) {
-                // A ↔ Z, B ↔ Y, dst
-                $cipherChar = chr(90 - (ord($char) - 65));
+            if (ctype_upper($char)) {
+                // Huruf besar: A ↔ Z
+                $cipherChar = chr(ord('Z') - (ord($char) - ord('A')));
+                $result .= $cipherChar;
+            } elseif (ctype_lower($char)) {
+                // Huruf kecil: a ↔ z
+                $cipherChar = chr(ord('z') - (ord($char) - ord('a')));
                 $result .= $cipherChar;
             } else {
+                // Karakter lain tetap
                 $result .= $char;
             }
         }
