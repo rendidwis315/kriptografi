@@ -6,9 +6,6 @@ use Illuminate\Http\Request;
 
 class CipherController extends Controller
 {
-    // =======================
-    // 🔹 ENKRIPSI VIGENERE
-    // =======================
     public function vigenereEncrypt()
     {
         return view('vigenere.encrypt');
@@ -24,7 +21,8 @@ class CipherController extends Controller
                 ->with('error', 'Plaintext dan key harus diisi.');
         }
 
-        $ciphertext = $this->encryptVigenere($plaintext, $key);
+        $normalizedKey = $this->normalizeKeyToLetters($key);
+        $ciphertext = $this->encryptVigenere($plaintext, $normalizedKey);
 
         return redirect()->route('vigenere.encrypt')->with('ciphertext', $ciphertext);
     }
@@ -37,22 +35,18 @@ class CipherController extends Controller
 
         for ($i = 0; $i < strlen($text); $i++) {
             $char = $text[$i];
-
             if (ctype_alpha($char)) {
                 $shift = $this->getShiftValue($keyExpanded[$j]);
                 $ciphertext .= $this->shiftChar($char, $shift);
                 $j++;
             } else {
-                $ciphertext .= $char; // spasi/simbol tidak berubah
+                $ciphertext .= $char;
             }
         }
 
         return $ciphertext;
     }
 
-    // =======================
-    // 🔹 DEKRIPSI VIGENERE
-    // =======================
     public function vigenereDecrypt()
     {
         return view('vigenere.decrypt');
@@ -68,7 +62,8 @@ class CipherController extends Controller
                 ->with('error', 'Ciphertext dan key harus diisi.');
         }
 
-        $plaintext = $this->decryptVigenere($ciphertext, $key);
+        $normalizedKey = $this->normalizeKeyToLetters($key);
+        $plaintext = $this->decryptVigenere($ciphertext, $normalizedKey);
 
         return redirect()->route('vigenere.decrypt')->with('plaintext', $plaintext);
     }
@@ -81,7 +76,6 @@ class CipherController extends Controller
 
         for ($i = 0; $i < strlen($text); $i++) {
             $char = $text[$i];
-
             if (ctype_alpha($char)) {
                 $shift = $this->getShiftValue($keyExpanded[$j]);
                 $plaintext .= $this->shiftChar($char, -$shift);
@@ -94,11 +88,17 @@ class CipherController extends Controller
         return $plaintext;
     }
 
-    // =======================
-    // 🔹 FUNGSI BANTU
-    // =======================
+    private function normalizeKeyToLetters(string $key): string
+    {
+        $result = '';
+        foreach (str_split($key) as $char) {
+            $code = ord($char);
+            $letter = chr(($code % 26) + 65); // A–Z
+            $result .= $letter;
+        }
+        return $result;
+    }
 
-    // Perpanjang key agar sepanjang huruf di teks (spasi tidak dihitung)
     private function extendKey($text, $key)
     {
         $lettersOnly = preg_replace('/[^A-Za-z]/', '', $text);
@@ -106,18 +106,13 @@ class CipherController extends Controller
         return substr($repeatedKey, 0, strlen($lettersOnly));
     }
 
-    // Dapatkan nilai shift tergantung kapitalisasi huruf key
     private function getShiftValue($char)
     {
-        if (ctype_upper($char)) {
-            return ord($char) - ord('A'); // A=0..Z=25
-        } elseif (ctype_lower($char)) {
-            return ord($char) - ord('a'); // a=0..z=25
-        }
-        return 0;
+        return ctype_upper($char)
+            ? ord($char) - ord('A')
+            : ord(strtoupper($char)) - ord('A');
     }
 
-    // Geser huruf (menyesuaikan kapital)
     private function shiftChar($char, $shift)
     {
         if (ctype_upper($char)) {

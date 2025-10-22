@@ -8,9 +8,6 @@ class TripleCipherController extends Controller
 {
     private $aesMethod = "AES-128-CBC";
 
-    /* -------------------------
-       Tampilan Halaman
-       ------------------------- */
     public function encryptForm()
     {
         return view('triple.encrypt');
@@ -21,9 +18,6 @@ class TripleCipherController extends Controller
         return view('triple.decrypt');
     }
 
-    /* -------------------------
-       Proses Enkripsi
-       ------------------------- */
     public function encryptProcess(Request $request)
     {
         $plaintext = $request->input('plaintext', '');
@@ -33,39 +27,28 @@ class TripleCipherController extends Controller
             return redirect()->route('triple.encrypt')->with('error', 'Plaintext dan kunci harus diisi.');
         }
 
-        // -------------------
-        // Derivasi key
-        // -------------------
-        // Vigenère key hanya huruf besar, spasi dihapus
-        $vigenereKey = strtoupper(preg_replace('/[^A-Za-z]/', '', $mainKey));
+        // Konsisten dengan CipherController
+        $vigenereKey = $this->normalizeKeyToLetters(str_replace(' ', '', $mainKey));
+
         if ($vigenereKey === '') {
-            return redirect()->route('triple.encrypt')->with('error', 'Kunci harus mengandung huruf untuk Vigenère.');
+            return redirect()->route('triple.encrypt')->with('error', 'Kunci harus mengandung huruf.');
         }
 
-        // AES key: gunakan apa adanya (huruf, angka, simbol, spasi)
-        $aesKey = $this->generateAESKey($mainKey);
+        // Konsisten dengan AESController
+        $aesKey = $this->deriveAesKey($mainKey);
 
-        // -------------------
-        // 1) ATBASH (huruf besar, hasil mengikuti kapitalisasi plaintext)
-        // -------------------
+        // 1️⃣ Atbash
         $step1 = $this->atbashWithCase($plaintext);
 
-        // -------------------
-        // 2) VIGENÈRE (plaintext huruf besar untuk proses, hasil mengikuti kapitalisasi step1)
-        // -------------------
+        // 2️⃣ Vigenère
         $step2 = $this->vigenereWithCase($step1, $vigenereKey);
 
-        // -------------------
-        // 3) AES (tidak menormalisasi kapital, key sesuai aesKey)
-        // -------------------
+        // 3️⃣ AES
         $ciphertext = $this->encryptAES($step2, $aesKey);
 
         return redirect()->route('triple.encrypt')->with('ciphertext', $ciphertext);
     }
 
-    /* -------------------------
-       Proses Dekripsi
-       ------------------------- */
     public function decryptProcess(Request $request)
     {
         $ciphertext = $request->input('ciphertext', '');
@@ -75,50 +58,33 @@ class TripleCipherController extends Controller
             return redirect()->route('triple.decrypt')->with('error', 'Ciphertext dan kunci harus diisi.');
         }
 
-        // Derivasi key
-        $vigenereKey = strtoupper(preg_replace('/[^A-Za-z]/', '', $mainKey));
-        if ($vigenereKey === '') {
-            return redirect()->route('triple.decrypt')->with('error', 'Kunci harus mengandung huruf untuk Vigenère.');
-        }
-        $aesKey = $this->generateAESKey($mainKey);
+        $vigenereKey = $this->normalizeKeyToLetters(str_replace(' ', '', $mainKey));
+        $aesKey = $this->deriveAesKey($mainKey);
 
-        // -------------------
-        // 1) AES decrypt
-        // -------------------
+        // 1️⃣ AES decrypt
         $afterAes = $this->decryptAES($ciphertext, $aesKey);
         if ($afterAes === false) {
-            return redirect()->route('triple.decrypt')->with('error', 'Gagal dekripsi AES — pastikan kunci dan ciphertext benar.');
+            return redirect()->route('triple.decrypt')->with('error', 'Gagal dekripsi AES.');
         }
 
-        // -------------------
-        // 2) VIGENÈRE decrypt (mengikuti kapitalisasi step)
-        // -------------------
+        // 2️⃣ Vigenère decrypt
         $afterVigenere = $this->vigenereDecryptWithCase($afterAes, $vigenereKey);
 
-        // -------------------
-        // 3) ATBASH decrypt (simetris)
-        // -------------------
+        // 3️⃣ Atbash decrypt (simetris)
         $plaintext = $this->atbashWithCase($afterVigenere);
 
         return redirect()->route('triple.decrypt')->with('plaintext', $plaintext);
     }
 
-    /* -------------------------
-       Helper: AES Key Generator
-       ------------------------- */
-    private function generateAESKey(string $key): string
+    /* --- Helper: AES Key --- */
+    private function deriveAesKey(string $key): string
     {
-        // jika panjang >=16 karakter, gunakan apa adanya
-        if (strlen($key) >= 16) {
-            return substr($key, 0, 16);
-        }
-        // jika kurang, bangkitkan dari hash
-        return substr(hash('sha256', $key), 0, 16);
+        return strlen($key) === 16
+            ? $key
+            : substr(hash('sha256', $key), 0, 16);
     }
 
-    /* -------------------------
-       Helper: AES
-       ------------------------- */
+    /* --- AES --- */
     private function encryptAES(string $text, string $key): string
     {
         $iv = substr(hash('sha256', $key), 0, 16);
@@ -135,18 +101,15 @@ class TripleCipherController extends Controller
         return $decrypted === false ? false : $decrypted;
     }
 
-    /* -------------------------
-       Helper: ATBASH (mengikuti kapitalisasi plaintext)
-       ------------------------- */
+    /* --- Atbash --- */
     private function atbashWithCase(string $text): string
     {
         $result = '';
         foreach (str_split($text) as $char) {
-            if (ctype_alpha($char)) {
-                $isUpper = ctype_upper($char);
-                $c = strtoupper($char);
-                $cipher = chr(ord('Z') - (ord($c) - ord('A')));
-                $result .= $isUpper ? $cipher : strtolower($cipher);
+            if (ctype_upper($char)) {
+                $result .= chr(ord('Z') - (ord($char) - ord('A')));
+            } elseif (ctype_lower($char)) {
+                $result .= chr(ord('z') - (ord($char) - ord('a')));
             } else {
                 $result .= $char;
             }
@@ -154,9 +117,7 @@ class TripleCipherController extends Controller
         return $result;
     }
 
-    /* -------------------------
-       Helper: VIGENÈRE dengan kapital mengikuti plaintext
-       ------------------------- */
+    /* --- Vigenère --- */
     private function vigenereWithCase(string $text, string $key): string
     {
         $ciphertext = '';
@@ -167,10 +128,9 @@ class TripleCipherController extends Controller
         foreach (str_split($text) as $char) {
             if (ctype_alpha($char)) {
                 $isUpper = ctype_upper($char);
-                $c = strtoupper($char);
                 $shift = ord($filteredKey[$j % $keyLen]) - 65;
-                $enc = ((ord($c) - 65 + $shift) % 26) + 65;
-                $ciphertext .= $isUpper ? chr($enc) : strtolower(chr($enc));
+                $base = $isUpper ? ord('A') : ord('a');
+                $ciphertext .= chr((ord($char) - $base + $shift) % 26 + $base);
                 $j++;
             } else {
                 $ciphertext .= $char;
@@ -189,14 +149,24 @@ class TripleCipherController extends Controller
         foreach (str_split($text) as $char) {
             if (ctype_alpha($char)) {
                 $isUpper = ctype_upper($char);
-                $c = strtoupper($char);
-                $dec = ((ord($c) - 65 - (ord($filteredKey[$j % $keyLen]) - 65) + 26) % 26) + 65;
-                $plaintext .= $isUpper ? chr($dec) : strtolower(chr($dec));
+                $shift = ord($filteredKey[$j % $keyLen]) - 65;
+                $base = $isUpper ? ord('A') : ord('a');
+                $plaintext .= chr((ord($char) - $base - $shift + 26) % 26 + $base);
                 $j++;
             } else {
                 $plaintext .= $char;
             }
         }
         return $plaintext;
+    }
+
+    private function normalizeKeyToLetters(string $key): string
+    {
+        $result = '';
+        foreach (str_split($key) as $char) {
+            $code = ord($char);
+            $result .= chr(($code % 26) + 65);
+        }
+        return $result;
     }
 }
